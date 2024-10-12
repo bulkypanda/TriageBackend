@@ -1,4 +1,5 @@
 import requests
+import datetime
 from flask import Flask, jsonify
 from newsapi import NewsApiClient
 import os
@@ -14,33 +15,27 @@ def get_home():
     return toReturn
 
 
-@app.route('/api/<string:disasterName>', methods=['GET'])
+def lastweek(string=True):
+    day = datetime.date.today() - datetime.timedelta(7)
+    return day
+
+@app.route('/news/<string:disasterName>', methods=['GET'])
 def get_news(disasterName):
-    # params = {
-    #     'access_key': flightkey,
-    #     'flight_iata': flightnum,
-    #     'limit': 1
-    # }
-    # api_result = requests.get('http://api.aviationstack.com/v1/flights?access_key=' + flightnum, params)
-    # api_response = api_result.json()
-    # print(api_response)
-    # print(api_response['data'])
+    lweek = lastweek(True)
+    articles = api.get_everything(q=disasterName, from_param=lweek)
 
-    # gate = api_response['data'][0]['departure']['gate']
-    # time = api_response['data'][0]['departure']['scheduled']
-    # print(gate)
+    toReturn = jsonify(articles)
+    toReturn.headers.add('Access-Control-Allow-Origin', '*')
+    return toReturn
 
-    all_articles = api.get_everything(q='disasterName',
-                                      sources='bbc-news,the-verge',
-                                      domains='bbc.co.uk,techcrunch.com',
-                                      from_param='2017-12-01',
-                                      to='2017-12-12',
-                                      language='en',
-                                      sort_by='relevancy',
-                                      page=2)
+@app.route('/question/<string:disasterName>', methods=['GET'])
+def get_answer(disasterName):
+    lweek = lastweek(True)
+    articles = api.get_everything(q=disasterName, from_param=lweek, sort_by="relevancy", page_size=5, page=1)
 
 
-    toReturn = jsonify({"gate": gate, 'time': time})
+
+    toReturn = jsonify(articles)
     toReturn.headers.add('Access-Control-Allow-Origin', '*')
     return toReturn
 
@@ -50,4 +45,4 @@ if (__name__ == "__main__"):
     # parser.add_argument("-flight", "--flightnum", help="Flight Number", required=True)
     # args = parser.parse_args()
 
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port="6969", debug=True)

@@ -8,7 +8,6 @@ from flask_cors import CORS
 import requests
 import datetime
 from flask import Flask, request, jsonify
-from newsapi import NewsApiClient
 import os
 import base64
 import cv2

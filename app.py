@@ -1,6 +1,6 @@
 import requests
 import datetime
-from flask import Flask, jsonify, send_from_directory, request, url_for, send_file
+from flask import Flask, jsonify, send_from_directory, request, url_for
 import os
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
@@ -102,17 +102,13 @@ def process_image(image_path, result):
 @app.route('/images/<path:filename>')
 def serve_image(filename):
     try:
-        return send_file(filename, as_attachment=True, attachment_filename=filename, 
-                         add_etags=False, cache_timeout=0, conditional=True)
+        response = send_from_directory('', filename)
+        os.remove(filename)  # Delete the file after sending
+        return response
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    finally:
-        try:
-            os.remove(filename)
-        except Exception as e:
-            print(f"Error deleting file {filename}: {str(e)}")
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

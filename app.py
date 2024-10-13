@@ -81,7 +81,7 @@ def image_risks(address):
                   maxScore = response.json()['similarity']
                   max = line
             
-        return jsonify({"score": max}), 200
+        return str(max)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -5,6 +5,15 @@ import os
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 
+import requests
+import datetime
+from flask import Flask, request, jsonify
+from newsapi import NewsApiClient
+import os
+import base64
+import cv2
+import numpy as np
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

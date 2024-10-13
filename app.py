@@ -88,7 +88,7 @@ def image_risks(address):
 
 @app.route('/imagerisk/<string:address>', methods=['GET'])
 def image_risk(address):
-    damage = [42, 63, 89, 94, 50, 42, 80]
+    damage = [2, 6, 8, 1, 14, 17, 3]
     return str(damage[np.random.randint(0, len(damage))]) + "%"
 
 @app.route('/run-program', methods=['POST'])

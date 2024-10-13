@@ -28,6 +28,61 @@ def get_home():
     return toReturn
 
 
+@app.route('/imagerisks/<string:address>', methods=['GET'])
+def image_risks(address):    
+    API_URL = "https://3gf752e95a.execute-api.us-east-2.amazonaws.com/prod/image-similarity/"
+
+    try:
+        googleKey = 'AIzaSyCgWSfHxmUm-75lPOdgFfHeBfUBmhkEqRI'
+        url = f'https://maps.googleapis.com/maps/api/staticmap?center={address}&zoom=15&size=400x400&maptype=satellite&key={googleKey}'
+        response = requests.get(url)
+
+        img_array = np.frombuffer(response.content, np.uint8)
+
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        _, buffer = cv2.imencode('.png', img)
+        img_base64 = base64.b64encode(buffer).decode('utf-8')
+
+        IMAGE_DIR = './images'  # Change this to your actual directory
+
+
+        API_URL = "https://3gf752e95a.execute-api.us-east-2.amazonaws.com/prod/image-similarity/"
+
+        # Store scores for each image pair
+        scores = {}
+        max = ''
+        maxScore = 0
+        for filename in os.listdir('./images'):
+          
+              file_path = os.path.join('./images', filename)
+              line = file_path.split('.')[2]
+              img2_data = ''
+              
+              with open(file_path, "rb") as img_file:
+                  img2_data = base64.b64encode(img_file.read()).decode('utf-8')
+
+              # Prepare the request body
+              request_body = {
+                  "img_1": img_base64,
+                  "img_2": img2_data
+              }
+
+
+              response = requests.post(API_URL, json=request_body)
+              if maxScore < response.json()['similarity']:
+                  maxScore = response.json()['similarity']
+                  max = line
+            
+        return jsonify({"score": max}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/imagerisk/<string:address>', methods=['GET'])
+def image_risk(address):
+    damage = [42, 63, 89, 94, 50, 42, 80]
+    return str(damage[np.random.randint(0, len(damage))]) + "%"
+
 @app.route('/run-program', methods=['POST'])
 def run_program():
     if 'imageBefore' not in request.files or 'imageAfter' not in request.files:

@@ -1,21 +1,25 @@
 import requests
 import datetime
-from flask import Flask, jsonify
-from newsapi import NewsApiClient
+from flask import Flask, jsonify, send_from_directory, request, url_for
 import os
+from werkzeug.utils import secure_filename
+from flask_cors import CORS
 
-from peft import PeftModel, PeftConfig
-import transformers
-
-config = PeftConfig.from_pretrained("yuriachermann/Not-so-bright-AGI-Llama3.1-8B-UC200k-v2")
-base_model = transformers.AutoModelForCausalLM.from_pretrained("VAGOsolutions/Llama-3-SauerkrautLM-8b-Instruct")
-model = PeftModel.from_pretrained(base_model, "yuriachermann/Not-so-bright-AGI-Llama3.1-8B-UC200k-v2")
-tokenizer = transformers.AutoTokenizer.from_pretrained("VAGOsolutions/Llama-3-SauerkrautLM-8b-Instruct")
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from PIL import Image
+from roboflow import Roboflow
+import supervision as sv
+import cv2
 
 app = Flask(__name__)
+CORS(app)
 
-pplx_key = "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"
-news_api = NewsApiClient(api_key="e194b22299a64a58bf96756191249647")
+app.config['UPLOAD_FOLDER'] = 'uploads'
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 @app.route('/', methods=['GET'])
 def get_home():
@@ -24,92 +28,104 @@ def get_home():
     return toReturn
 
 
-def lastweek(string=True):
-    day = datetime.date.today() - datetime.timedelta(7)
-    return day
+@app.route('/run-program', methods=['POST'])
+def run_program():
+    if 'imageBefore' not in request.files or 'imageAfter' not in request.files:
+        return jsonify({'error': 'Both before and after images are required'}), 400
 
-@app.route('/news/<string:disasterName>', methods=['GET'])
-def get_news(disasterName):
-    lweek = lastweek(True)
-    articles = news_api.get_everything(q=disasterName, from_param=lweek)
+    image_before = request.files['imageBefore']
+    image_after = request.files['imageAfter']
 
-    arr = articles["articles"]
-    lim = min(10, len(arr))
-    arr = arr[:lim]
+    if image_before.filename == '' or image_after.filename == '':
+        return jsonify({'error': 'Both before and after images must be selected'}), 400
 
-    toReturn = jsonify({"articles": arr})
-    toReturn.headers.add('Access-Control-Allow-Origin', '*')
-    return toReturn
+    if image_before and image_after and allowed_file(image_before.filename) and allowed_file(image_after.filename):
+        image_path_before = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image_before.filename))
+        image_path_after = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image_after.filename))
 
-@app.route('/intel-llama-question/<string:disasterName>/<string:query>', methods=['GET'])
-def intel_llama_question(disasterName, query):
-    prompt = "You are Triage, a real-time disaster detection and relief AI assistant to answer questions regarding " + disasterName + ". You will be provided summaries of recent and relevant news sources that may help inform your responses. Keep your answers relevant and helpful as the user may currently be involved in a disaster. Decline answering unrelated questions.\n\nUser query: " + query + "\n\nNEWS ARTICLES:\n"
+        image_before.save(image_path_before)
+        image_after.save(image_path_after)
 
-    news = get_news(disasterName)
-    articles = news.json["articles"]
-    #print(articles)
-    for article in articles:
-        prompt += "\nArticle Title: " + article["title"] + "\nArticle Description: " + article["description"] + "\nArticle Content: " + article["content"] + "\n\n"
+        rf = Roboflow(api_key="zpb5BDJeUPjMGNd2CVoO")
+        project = rf.workspace().project("junk-jzngr")
+        model = project.version(16).model
 
-    print("prompt made!")
-    inputs = tokenizer(prompt, return_tensors="pt")
-    print("tokenized!")
-    output_tokens = model.generate(**inputs, max_length=500)
-    print("generated!")
-    response = tokenizer.decode(output_tokens[0], skip_special_tokens=True)
-    print("decoded!")
+        # Process before image
+        result_before = model.predict(image_path_before, confidence=12).json()
+        before_count = sum(1 for result in result_before['predictions'] if result['class'] == "no-damage")
+        output_path_before = process_image(image_path_before, result_before)
 
-    toReturn = jsonify({"answer": response})
-    toReturn.headers.add('Access-Control-Allow-Origin', '*')
-    return toReturn
+        # Process after image
+        result_after = model.predict(image_path_after, confidence=12).json()
+        after_count = sum(1 for result in result_after['predictions'] if result['class'] == "no-damage")
+        output_path_after = process_image(image_path_after, result_after)
 
-@app.route('/perplexity-question/<string:disasterName>/<string:query>', methods=['GET'])
-def perplexity_question(disasterName, query):
-    '''
-    lweek = lastweek(True)
-    articles = news_api.get_everything(q=disasterName, from_param=lweek, sort_by="relevancy", page_size=5, page=1)
+        damage_percentage = (after_count / before_count * 100) if before_count > 0 else 0
 
-    arr = articles["articles"]
-    print(type(arr))
-    print(arr)
-    '''
-    url = "https://api.perplexity.ai/chat/completions"
-    payload = {
-    "model": "llama-3.1-sonar-small-128k-online",
-    "messages": [{
-        "role": "system",
-        "content": "You are Triage, a real-time disaster detection and relief AI assistant to answer questions regarding " + disasterName + ". Keep your answers relevant and helpful. The user may currently be involved in a disaster. Decline answering unrelated questions."
-      },
-      {
-        "role": "user",
-        "content": query
-      }],
-      "max_tokens": 1000,
-      "temperature": 0.2,
-      "top_p": 0.9,
-      "return_citations": False,
-      "return_images": False,
-      "return_related_questions": False,
-      "search_recency_filter": "week",
-      "top_k": 0,
-      "stream": False,
-      "presence_penalty": 0,
-      "frequency_penalty": 1
-    }
-    headers = {
-        "Authorization": "Bearer " + pplx_key,
-        "Content-Type": "application/json"
-    }
+        response = {
+            "outputImageBefore": url_for('serve_image', filename=output_path_before, _external=True),
+            "outputImageAfter": url_for('serve_image', filename=output_path_after, _external=True),
+            "damagePercentage": damage_percentage
+        }
 
-    response = requests.request("POST", url, json=payload, headers=headers)
-    answer = response.json()["choices"][0]["message"]["content"]
+        return jsonify(response)
 
-    print(answer)
+    return jsonify({'error': 'Invalid file type'}), 400
 
-    toReturn = jsonify({"answer": answer})
-    toReturn.headers.add('Access-Control-Allow-Origin', '*')
-    return toReturn
+def process_image(image_path, result):
+    image = Image.open(image_path)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(image)
+
+    for pred in result['predictions']:
+        x_center, y_center = pred['x'], pred['y']
+        width, height = pred['width'], pred['height']
+        x_min, y_min = x_center - (width / 2), y_center - (height / 2)
+
+        color = {
+            "minor-damage": "green",
+            "major-damage": "yellow",
+            "destroyed": "red",
+            "no-damage": "blue"
+        }.get(pred['class'], "white")
+
+        rect = patches.Rectangle((x_min, y_min), width, height, linewidth=3, edgecolor=color, facecolor='none')
+        ax.add_patch(rect)
+        ax.text(x_min, y_min - 10, pred['class'], fontsize=8, color="black")
+
+    ax.axis('off')
+    output_path = f"output_{os.path.basename(image_path)}"
+    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    return output_path
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    try:
+        response = send_from_directory('', filename)
+        os.remove(filename)  # Delete the file after sending
+        return response
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        return jsonify({'filename': filename}), 200
+    return jsonify({'error': 'File type not allowed'}), 400
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}
 
 if (__name__ == "__main__"):
 
-    app.run(host="0.0.0.0", port="6969", debug=True)
+    app.run(host="0.0.0.0", debug=True)

@@ -103,7 +103,6 @@ def process_image(image_path, result):
 def serve_image(filename):
     try:
         response = send_from_directory('', filename)
-        os.remove(filename)  # Delete the file after sending
         return response
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404

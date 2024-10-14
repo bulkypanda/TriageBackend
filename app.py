@@ -13,6 +13,7 @@ import matplotlib.patches as patches
 from PIL import Image
 from roboflow import Roboflow
 import cv2
+from waitress import serve
 
 matplotlib.use('Agg')
 app = Flask(__name__)
@@ -181,6 +182,5 @@ def upload_file():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}
 
-if (__name__ == "__main__"):
-
-    app.run(host="0.0.0.0", debug=True)
+def create_app():
+   return app

@@ -4,24 +4,17 @@ from flask import Flask, jsonify, send_from_directory, request, url_for
 import os
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
-
-import requests
-import datetime
-from flask import Flask, request, jsonify
-import os
 import base64
 import cv2
 import numpy as np
-
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
 from roboflow import Roboflow
-import supervision as sv
 import cv2
 
+matplotlib.use('Agg')
 app = Flask(__name__)
 CORS(app)
 
@@ -89,7 +82,7 @@ def image_risks(address):
 @app.route('/imagerisk/<string:address>', methods=['GET'])
 def image_risk(address):
     damage = [2, 6, 8, 1, 14, 17, 3]
-    return str(damage[np.random.randint(0, len(damage))]) + "%"
+    return jsonify({"damage": str(damage[np.random.randint(0, len(damage))]) + "%"})
 
 @app.route('/run-program', methods=['POST'])
 def run_program():

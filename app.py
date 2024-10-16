@@ -100,8 +100,9 @@ def run_program():
         image_path_before = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image_before.filename))
         image_path_after = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(image_after.filename))
 
-        image_before.save(image_path_before)
-        image_after.save(image_path_after)
+        # Save images as RGB
+        Image.open(image_before).convert('RGB').save(image_path_before, 'JPEG')
+        Image.open(image_after).convert('RGB').save(image_path_after, 'JPEG')
 
         rf = Roboflow(api_key="zpb5BDJeUPjMGNd2CVoO")
         project = rf.workspace().project("junk-jzngr")
@@ -130,7 +131,7 @@ def run_program():
     return jsonify({'error': 'Invalid file type'}), 400
 
 def process_image(image_path, result):
-    image = Image.open(image_path)
+    image = Image.open(image_path).convert('RGB')  # Convert to RGB
     fig, ax = plt.subplots(figsize=(10, 10))
     ax.imshow(image)
 
@@ -152,7 +153,7 @@ def process_image(image_path, result):
 
     ax.axis('off')
     output_path = f"output_{os.path.basename(image_path)}"
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+    plt.savefig(output_path, bbox_inches='tight', pad_inches=0, format='jpeg')
     plt.close(fig)
     return output_path
 
@@ -180,7 +181,7 @@ def upload_file():
     return jsonify({'error': 'File type not allowed'}), 400
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png'}
 
 def create_app():
    return app

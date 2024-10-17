@@ -108,25 +108,33 @@ def run_program():
         project = rf.workspace().project("junk-jzngr")
         model = project.version(16).model
 
-        # Process before image
-        result_before = model.predict(image_path_before, confidence=12).json()
-        before_count = sum(1 for result in result_before['predictions'] if result['class'] == "no-damage")
-        output_path_before = process_image(image_path_before, result_before)
+        try:
+            # Process before image
+            result_before = model.predict(image_path_before, confidence=12).json()
+            before_count = sum(1 for result in result_before['predictions'] if result['class'] == "no-damage")
+            output_path_before = process_image(image_path_before, result_before)
 
-        # Process after image
-        result_after = model.predict(image_path_after, confidence=12).json()
-        after_count = sum(1 for result in result_after['predictions'] if result['class'] == "no-damage")
-        output_path_after = process_image(image_path_after, result_after)
+            # Process after image
+            result_after = model.predict(image_path_after, confidence=12).json()
+            after_count = sum(1 for result in result_after['predictions'] if result['class'] == "no-damage")
+            output_path_after = process_image(image_path_after, result_after)
 
-        damage_percentage = (after_count / before_count * 100) if before_count > 0 else 0
+            damage_percentage = (after_count / before_count * 100) if before_count > 0 else 0
 
-        response = {
-            "outputImageBefore": url_for('serve_image', filename=output_path_before, _external=True),
-            "outputImageAfter": url_for('serve_image', filename=output_path_after, _external=True),
-            "damagePercentage": damage_percentage
-        }
+            response = {
+                "outputImageBefore": url_for('serve_image', filename=output_path_before, _external=True),
+                "outputImageAfter": url_for('serve_image', filename=output_path_after, _external=True),
+                "damagePercentage": damage_percentage
+            }
 
-        return jsonify(response)
+            # Delete the original and processed images
+            delete_files(image_path_before, image_path_after, output_path_before, output_path_after)
+
+            return jsonify(response)
+        except Exception as e:
+            # Delete the original images in case of an error
+            delete_files(image_path_before, image_path_after)
+            return jsonify({'error': str(e)}), 500
 
     return jsonify({'error': 'Invalid file type'}), 400
 
@@ -166,6 +174,9 @@ def serve_image(filename):
         return jsonify({'error': 'File not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        # Delete the file after serving it
+        delete_files(filename)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -185,3 +196,10 @@ def allowed_file(filename):
 
 def create_app():
    return app
+
+def delete_files(*file_paths):
+    for file_path in file_paths:
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print(f"Error deleting file {file_path}: {str(e)}")
